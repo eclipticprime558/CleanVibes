@@ -342,7 +342,8 @@
 <!-- CUSTOM PANEL -->
 <div class="custom-panel" id="customPanel">
   <label>Frequency <span id="customFreqVal">165 Hz</span></label>
-  <input type="range" id="customFreq" min="20" max="800" value="165" oninput="onCustomFreq(this.value)">
+  <input type="range" id="customFreq" min="60" max="800" value="165" oninput="onCustomFreq(this.value)">
+  <div style="font-size:11px;color:#ff9a9a;margin-top:8px;">⚠️ Below 60 Hz at max volume can over-excur and damage phone speakers.</div>
 </div>
 
 <!-- PROGRESS RING + PLAY -->
@@ -469,7 +470,7 @@ const MODES = {
     emoji: '🎛️',
     doneTitle: 'Done!',
     doneSub: 'Custom frequency session complete.',
-    phases: [] // built dynamically
+    phases: [], // built dynamically — floor is 60 Hz to prevent speaker over-excursion
   }
 };
 
