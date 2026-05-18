@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0f">
+<title>CleanVibes — Speaker Cleaner</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131c;
+    --border: #1e1e2e;
+    --accent: #6c63ff;
+    --accent2: #00d4ff;
+    --accent3: #ff6b6b;
+    --accent4: #ffd93d;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+    --radius: 20px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    user-select: none;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    text-align: center;
+    padding: 52px 24px 20px;
+  }
+  .logo-ring {
+    width: 72px; height: 72px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px;
+    box-shadow: 0 0 40px rgba(108,99,255,.4);
+  }
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+  .tagline { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+  /* ── VOLUME WARNING ── */
+  .vol-warning {
+    margin: 0 20px 16px;
+    background: rgba(255,107,107,.12);
+    border: 1px solid rgba(255,107,107,.3);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #ff9a9a;
+    display: flex; align-items: center; gap: 8px;
+    opacity: 0;
+    transition: opacity .3s;
+  }
+  .vol-warning.show { opacity: 1; }
+  .vol-warning span.icon { font-size: 16px; flex-shrink: 0; }
+
+  /* ── MODE TABS ── */
+  .modes {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 0 16px 20px;
+  }
+  .mode-btn {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 6px;
+    cursor: pointer;
+    text-align: center;
+    transition: all .2s;
+    color: var(--muted);
+  }
+  .mode-btn .mode-icon { font-size: 22px; display: block; margin-bottom: 4px; }
+  .mode-btn .mode-label { font-size: 10px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; }
+  .mode-btn.active {
+    border-color: var(--mode-color, var(--accent));
+    color: var(--mode-color, var(--accent));
+    background: color-mix(in srgb, var(--mode-color, var(--accent)) 10%, var(--surface));
+    box-shadow: 0 0 20px color-mix(in srgb, var(--mode-color, var(--accent)) 30%, transparent);
+  }
+
+  /* ── VISUALIZER ── */
+  .viz-container {
+    position: relative;
+    margin: 0 16px 20px;
+    height: 120px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  canvas#viz { width: 100%; height: 100%; display: block; }
+  .viz-freq-label {
+    position: absolute;
+    top: 10px; left: 14px;
+    font-size: 11px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+
+  /* ── PROGRESS RING ── */
+  .ring-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .ring-wrap {
+    position: relative;
+    width: 180px; height: 180px;
+  }
+  svg.ring { width: 180px; height: 180px; transform: rotate(-90deg); }
+  .ring-bg { fill: none; stroke: var(--border); stroke-width: 8; }
+  .ring-progress {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 8;
+    stroke-linecap: round;
+    stroke-dasharray: 502;
+    stroke-dashoffset: 502;
+    transition: stroke-dashoffset .1s linear, stroke .3s;
+  }
+  .ring-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .ring-time {
+    font-size: 40px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -2px;
+  }
+  .ring-sublabel {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    margin-top: 2px;
+  }
+  .ring-phase {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--muted);
+    height: 18px;
+    text-align: center;
+    transition: opacity .3s;
+  }
+
+  /* ── PLAY BUTTON ── */
+  .play-btn {
+    width: 76px; height: 76px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    font-size: 28px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    margin: 4px auto 0;
+    box-shadow: 0 8px 32px rgba(108,99,255,.45);
+    transition: transform .15s, box-shadow .15s;
+    position: relative;
+  }
+  .play-btn:active { transform: scale(.93); }
+  .play-btn.running {
+    background: linear-gradient(135deg, #ff6b6b, #ff9a3c);
+    box-shadow: 0 8px 32px rgba(255,107,107,.45);
+    animation: pulse-ring 1.5s ease-out infinite;
+  }
+  @keyframes pulse-ring {
+    0%   { box-shadow: 0 0 0 0 rgba(255,107,107,.5), 0 8px 32px rgba(255,107,107,.4); }
+    70%  { box-shadow: 0 0 0 18px rgba(255,107,107,0), 0 8px 32px rgba(255,107,107,.4); }
+    100% { box-shadow: 0 0 0 0 rgba(255,107,107,0), 0 8px 32px rgba(255,107,107,.4); }
+  }
+
+  /* ── CUSTOM FREQUENCY PANEL ── */
+  .custom-panel {
+    display: none;
+    margin: 0 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+  }
+  .custom-panel.show { display: block; }
+  .custom-panel label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .custom-panel label span { font-size: 16px; font-weight: 700; color: var(--text); }
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 5px;
+    background: var(--border);
+    border-radius: 3px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(108,99,255,.5);
+  }
+
+  /* ── INFO CARDS ── */
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 0 16px 24px;
+  }
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+  }
+  .info-card .ic-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 4px; }
+  .info-card .ic-val { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* ── TIPS ── */
+  .tips {
+    margin: 0 16px 40px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+  .tips h3 { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: var(--muted); letter-spacing: .4px; text-transform: uppercase; }
+  .tips li { font-size: 13px; color: var(--muted); margin-bottom: 6px; padding-left: 4px; list-style: none; display: flex; gap: 8px; align-items: flex-start; }
+  .tips li::before { content: '→'; color: var(--accent); flex-shrink: 0; }
+
+  /* ── DONE OVERLAY ── */
+  .done-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,15,.92);
+    z-index: 100;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px;
+    backdrop-filter: blur(8px);
+  }
+  .done-overlay.show { display: flex; }
+  .done-emoji { font-size: 72px; margin-bottom: 20px; animation: pop .4s cubic-bezier(.175,.885,.32,1.275); }
+  @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+  .done-title { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .done-sub { color: var(--muted); font-size: 15px; line-height: 1.5; max-width: 280px; }
+  .done-btn {
+    margin-top: 32px;
+    padding: 16px 48px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 30px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(108,99,255,.4);
+  }
+
+  .footer-note {
+    text-align: center;
+    color: var(--muted);
+    font-size: 11px;
+    padding-bottom: 32px;
+    opacity: .5;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo-ring">🔊</div>
+  <h1>CleanVibes</h1>
+  <p class="tagline">Speaker cleaning with precision sound</p>
+</div>
+
+<!-- VOLUME WARNING -->
+<div class="vol-warning" id="volWarn">
+  <span class="icon">⚠️</span>
+  Turn volume to MAX for best results. Disable Bluetooth audio.
+</div>
+
+<!-- MODE SELECTOR -->
+<div class="modes">
+  <button class="mode-btn active" data-mode="water" style="--mode-color:#00d4ff" onclick="selectMode('water',this)">
+    <span class="mode-icon">💧</span>
+    <span class="mode-label">Water</span>
+  </button>
+  <button class="mode-btn" data-mode="dust" style="--mode-color:#ffd93d" onclick="selectMode('dust',this)">
+    <span class="mode-icon">🌀</span>
+    <span class="mode-label">Dust</span>
+  </button>
+  <button class="mode-btn" data-mode="deep" style="--mode-color:#6c63ff" onclick="selectMode('deep',this)">
+    <span class="mode-icon">✨</span>
+    <span class="mode-label">Deep</span>
+  </button>
+  <button class="mode-btn" data-mode="custom" style="--mode-color:#ff6b6b" onclick="selectMode('custom',this)">
+    <span class="mode-icon">🎛️</span>
+    <span class="mode-label">Custom</span>
+  </button>
+</div>
+
+<!-- WAVEFORM VISUALIZER -->
+<div class="viz-container">
+  <canvas id="viz"></canvas>
+  <div class="viz-freq-label" id="freqLabel">— Hz</div>
+</div>
+
+<!-- CUSTOM PANEL -->
+<div class="custom-panel" id="customPanel">
+  <label>Frequency <span id="customFreqVal">165 Hz</span></label>
+  <input type="range" id="customFreq" min="20" max="800" value="165" oninput="onCustomFreq(this.value)">
+</div>
+
+<!-- PROGRESS RING + PLAY -->
+<div class="ring-section">
+  <div class="ring-wrap">
+    <svg class="ring" viewBox="0 0 180 180">
+      <circle class="ring-bg" cx="90" cy="90" r="80"/>
+      <circle class="ring-progress" id="ringProgress" cx="90" cy="90" r="80"/>
+    </svg>
+    <div class="ring-center">
+      <div class="ring-time" id="ringTime">0:30</div>
+      <div class="ring-sublabel" id="ringLabel">ready</div>
+    </div>
+  </div>
+  <div class="ring-phase" id="phaseLabel"></div>
+  <button class="play-btn" id="playBtn" onclick="togglePlay()">▶</button>
+</div>
+
+<!-- STATS -->
+<div class="info-grid">
+  <div class="info-card">
+    <div class="ic-label">Current Freq</div>
+    <div class="ic-val" id="statFreq">—</div>
+  </div>
+  <div class="info-card">
+    <div class="ic-label">Runs Today</div>
+    <div class="ic-val" id="statRuns">0</div>
+  </div>
+  <div class="info-card">
+    <div class="ic-label">Mode</div>
+    <div class="ic-val" id="statMode">Water</div>
+  </div>
+  <div class="info-card">
+    <div class="ic-label">Waveform</div>
+    <div class="ic-val" id="statWave">Sine</div>
+  </div>
+</div>
+
+<!-- TIPS -->
+<div class="tips">
+  <h3>Tips for best results</h3>
+  <ul>
+    <li>Point the speaker face-down toward a dry cloth</li>
+    <li>Run 2–3 times for water — wait 10s between runs</li>
+    <li>Use Dust mode monthly to prevent buildup</li>
+    <li>Audio must play through device speaker, not headphones</li>
+  </ul>
+</div>
+
+<div class="footer-note">CleanVibes — built for precision</div>
+
+<!-- DONE OVERLAY -->
+<div class="done-overlay" id="doneOverlay">
+  <div class="done-emoji" id="doneEmoji">✅</div>
+  <div class="done-title" id="doneTitle">Cleaning Complete!</div>
+  <div class="done-sub" id="doneSub">Run again in 10 seconds for best results.</div>
+  <button class="done-btn" onclick="dismissDone()">Done</button>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// MODE DEFINITIONS
+// Each phase: { label, freqStart, freqEnd, duration (ms), waveType }
+// ─────────────────────────────────────────────
+const MODES = {
+  water: {
+    name: 'Water Eject',
+    totalMs: 30000,
+    color: '#00d4ff',
+    waveLabel: 'Sine',
+    emoji: '💧',
+    doneTitle: 'Water Ejected!',
+    doneSub: 'Point speaker down and run again if drops remain.',
+    phases: [
+      { label: 'Priming…',        freqStart: 165,  freqEnd: 165,  durationMs: 5000,  type: 'sine' },
+      { label: 'Sweep ↓',         freqStart: 165,  freqEnd: 100,  durationMs: 5000,  type: 'sine' },
+      { label: 'Deep pulse…',     freqStart: 100,  freqEnd: 100,  durationMs: 4000,  type: 'sine' },
+      { label: 'Sweep ↑',         freqStart: 100,  freqEnd: 400,  durationMs: 5000,  type: 'sine' },
+      { label: 'High flush…',     freqStart: 400,  freqEnd: 400,  durationMs: 4000,  type: 'sine' },
+      { label: 'Final pulse…',    freqStart: 165,  freqEnd: 165,  durationMs: 7000,  type: 'sine' },
+    ]
+  },
+  dust: {
+    name: 'Dust Blast',
+    totalMs: 25000,
+    color: '#ffd93d',
+    waveLabel: 'Sawtooth',
+    emoji: '🌀',
+    doneTitle: 'Dust Blasted!',
+    doneSub: 'Wipe the speaker grille gently with a dry cloth.',
+    phases: [
+      { label: 'Low sweep…',      freqStart: 50,   freqEnd: 200,  durationMs: 6000,  type: 'sawtooth' },
+      { label: 'Mid burst…',      freqStart: 200,  freqEnd: 200,  durationMs: 4000,  type: 'square'   },
+      { label: 'High sweep…',     freqStart: 200,  freqEnd: 800,  durationMs: 6000,  type: 'sawtooth' },
+      { label: 'Resonance…',      freqStart: 300,  freqEnd: 300,  durationMs: 5000,  type: 'sine'     },
+      { label: 'Final clear…',    freqStart: 800,  freqEnd: 100,  durationMs: 4000,  type: 'sawtooth' },
+    ]
+  },
+  deep: {
+    name: 'Deep Clean',
+    totalMs: 60000,
+    color: '#6c63ff',
+    waveLabel: 'Multi',
+    emoji: '✨',
+    doneTitle: 'Deep Clean Done!',
+    doneSub: 'Your speaker has been thoroughly cleaned.',
+    phases: [
+      { label: 'Water — prime…',  freqStart: 165,  freqEnd: 165,  durationMs: 5000,  type: 'sine'     },
+      { label: 'Water — sweep…',  freqStart: 165,  freqEnd: 80,   durationMs: 5000,  type: 'sine'     },
+      { label: 'Water — pulse…',  freqStart: 80,   freqEnd: 80,   durationMs: 5000,  type: 'sine'     },
+      { label: 'Dust — low…',     freqStart: 50,   freqEnd: 200,  durationMs: 5000,  type: 'sawtooth' },
+      { label: 'Dust — burst…',   freqStart: 200,  freqEnd: 200,  durationMs: 5000,  type: 'square'   },
+      { label: 'Dust — high…',    freqStart: 200,  freqEnd: 800,  durationMs: 5000,  type: 'sawtooth' },
+      { label: 'Full sweep ↑',    freqStart: 80,   freqEnd: 800,  durationMs: 10000, type: 'sine'     },
+      { label: 'Full sweep ↓',    freqStart: 800,  freqEnd: 80,   durationMs: 10000, type: 'sine'     },
+      { label: 'Final flush…',    freqStart: 165,  freqEnd: 165,  durationMs: 10000, type: 'sine'     },
+    ]
+  },
+  custom: {
+    name: 'Custom',
+    totalMs: 20000,
+    color: '#ff6b6b',
+    waveLabel: 'Sine',
+    emoji: '🎛️',
+    doneTitle: 'Done!',
+    doneSub: 'Custom frequency session complete.',
+    phases: [] // built dynamically
+  }
+};
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let currentMode = 'water';
+let isRunning = false;
+let audioCtx = null;
+let oscillator = null;
+let gainNode = null;
+let analyser = null;
+let vizRaf = null;
+let startTime = null;
+let phaseIndex = 0;
+let phaseStartTime = null;
+let tickInterval = null;
+let customFrequency = 165;
+let runsToday = parseInt(localStorage.getItem('cv_runs_' + today()) || '0');
+
+function today() {
+  return new Date().toISOString().slice(0,10);
+}
+
+// ─────────────────────────────────────────────
+// UI HELPERS
+// ─────────────────────────────────────────────
+function selectMode(mode, btn) {
+  if (isRunning) return;
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('customPanel').classList.toggle('show', mode === 'custom');
+
+  const def = MODES[mode];
+  document.getElementById('statMode').textContent = def.name;
+  document.getElementById('statWave').textContent = def.waveLabel;
+  updateRingDisplay(def.totalMs / 1000, 0);
+  document.getElementById('ringProgress').style.stroke = def.color;
+  document.getElementById('freqLabel').textContent = '— Hz';
+  document.getElementById('statFreq').textContent = '—';
+  document.getElementById('phaseLabel').textContent = '';
+}
+
+function onCustomFreq(val) {
+  customFrequency = parseInt(val);
+  document.getElementById('customFreqVal').textContent = customFrequency + ' Hz';
+  if (isRunning && oscillator) {
+    oscillator.frequency.setTargetAtTime(customFrequency, audioCtx.currentTime, 0.05);
+  }
+}
+
+function updateRingDisplay(totalSec, elapsedSec) {
+  const remaining = Math.max(0, totalSec - elapsedSec);
+  const mins = Math.floor(remaining / 60);
+  const secs = Math.floor(remaining % 60);
+  document.getElementById('ringTime').textContent = mins + ':' + String(secs).padStart(2,'0');
+
+  const pct = elapsedSec / totalSec;
+  const circumference = 502;
+  const offset = circumference - pct * circumference;
+  document.getElementById('ringProgress').style.strokeDashoffset = offset;
+}
+
+// ─────────────────────────────────────────────
+// AUDIO ENGINE
+// ─────────────────────────────────────────────
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+
+  gainNode = audioCtx.createGain();
+  gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+  gainNode.gain.linearRampToValueAtTime(0.9, audioCtx.currentTime + 0.3);
+
+  oscillator = audioCtx.createOscillator();
+  oscillator.type = 'sine';
+  oscillator.frequency.setValueAtTime(165, audioCtx.currentTime);
+
+  oscillator.connect(gainNode);
+  gainNode.connect(analyser);
+  analyser.connect(audioCtx.destination);
+  oscillator.start();
+}
+
+function stopAudio() {
+  if (!oscillator) return;
+  gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+  setTimeout(() => {
+    try { oscillator.stop(); } catch(e) {}
+    oscillator = null;
+    gainNode = null;
+    analyser = null;
+  }, 300);
+}
+
+function buildCustomPhases() {
+  MODES.custom.phases = [{
+    label: `${customFrequency} Hz tone`,
+    freqStart: customFrequency,
+    freqEnd: customFrequency,
+    durationMs: 20000,
+    type: 'sine'
+  }];
+  MODES.custom.totalMs = 20000;
+}
+
+// ─────────────────────────────────────────────
+// VIBRATION PATTERNS
+// ─────────────────────────────────────────────
+function startVibration(mode) {
+  if (!navigator.vibrate) return;
+  if (mode === 'water') {
+    // Rhythmic pulses matching ~165 Hz bursts
+    const pattern = [];
+    for (let i = 0; i < 15; i++) pattern.push(100, 50);
+    navigator.vibrate(pattern);
+  } else if (mode === 'dust') {
+    const pattern = [];
+    for (let i = 0; i < 10; i++) pattern.push(200, 30);
+    navigator.vibrate(pattern);
+  } else if (mode === 'deep') {
+    const pattern = [];
+    for (let i = 0; i < 20; i++) pattern.push(150, 50);
+    navigator.vibrate(pattern);
+  } else {
+    navigator.vibrate([300, 100, 300, 100, 300]);
+  }
+}
+
+function stopVibration() {
+  if (navigator.vibrate) navigator.vibrate(0);
+}
+
+// ─────────────────────────────────────────────
+// PLAYBACK CONTROL
+// ─────────────────────────────────────────────
+function togglePlay() {
+  if (isRunning) { stopClean(); } else { startClean(); }
+}
+
+function startClean() {
+  if (currentMode === 'custom') buildCustomPhases();
+
+  initAudio();
+  isRunning = true;
+  phaseIndex = 0;
+  startTime = Date.now();
+  phaseStartTime = Date.now();
+
+  document.getElementById('playBtn').classList.add('running');
+  document.getElementById('playBtn').textContent = '⏹';
+  document.getElementById('ringLabel').textContent = 'running';
+  document.getElementById('volWarn').classList.add('show');
+
+  startVibration(currentMode);
+  runPhase();
+  startVizLoop();
+  tickInterval = setInterval(onTick, 50);
+}
+
+function stopClean(completed = false) {
+  isRunning = false;
+  clearInterval(tickInterval);
+  stopAudio();
+  stopVibration();
+  cancelAnimationFrame(vizRaf);
+
+  document.getElementById('playBtn').classList.remove('running');
+  document.getElementById('playBtn').textContent = '▶';
+  document.getElementById('ringLabel').textContent = 'ready';
+  document.getElementById('phaseLabel').textContent = '';
+  document.getElementById('freqLabel').textContent = '— Hz';
+  document.getElementById('statFreq').textContent = '—';
+
+  const def = MODES[currentMode];
+  updateRingDisplay(def.totalMs / 1000, 0);
+
+  if (completed) {
+    runsToday++;
+    localStorage.setItem('cv_runs_' + today(), runsToday);
+    document.getElementById('statRuns').textContent = runsToday;
+    showDone();
+  }
+}
+
+function runPhase() {
+  if (!isRunning) return;
+  const def = MODES[currentMode];
+  if (phaseIndex >= def.phases.length) {
+    stopClean(true);
+    return;
+  }
+  const phase = def.phases[phaseIndex];
+  const now = audioCtx.currentTime;
+  const dur = phase.durationMs / 1000;
+
+  oscillator.type = phase.type;
+  oscillator.frequency.cancelScheduledValues(now);
+  oscillator.frequency.setValueAtTime(phase.freqStart, now);
+  if (phase.freqStart !== phase.freqEnd) {
+    oscillator.frequency.linearRampToValueAtTime(phase.freqEnd, now + dur);
+  }
+
+  document.getElementById('phaseLabel').textContent = phase.label;
+  phaseStartTime = Date.now();
+
+  setTimeout(() => {
+    phaseIndex++;
+    runPhase();
+  }, phase.durationMs);
+}
+
+function onTick() {
+  if (!isRunning) return;
+  const def = MODES[currentMode];
+  const elapsed = (Date.now() - startTime) / 1000;
+  updateRingDisplay(def.totalMs / 1000, elapsed);
+
+  // current freq from oscillator
+  if (oscillator) {
+    const f = Math.round(oscillator.frequency.value);
+    document.getElementById('freqLabel').textContent = f + ' Hz';
+    document.getElementById('statFreq').textContent = f + ' Hz';
+  }
+}
+
+// ─────────────────────────────────────────────
+// VISUALIZER
+// ─────────────────────────────────────────────
+function startVizLoop() {
+  const canvas = document.getElementById('viz');
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width = canvas.offsetWidth * devicePixelRatio;
+    canvas.height = canvas.offsetHeight * devicePixelRatio;
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+  }
+  resize();
+
+  const bufferLength = analyser ? analyser.frequencyBinCount : 128;
+  const dataArray = new Uint8Array(bufferLength);
+
+  function draw() {
+    vizRaf = requestAnimationFrame(draw);
+    const W = canvas.offsetWidth, H = canvas.offsetHeight;
+
+    ctx.clearRect(0, 0, W, H);
+
+    if (!analyser) return;
+    analyser.getByteTimeDomainData(dataArray);
+
+    const def = MODES[currentMode];
+    const color = def.color;
+
+    // Gradient fill under wave
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, color + '40');
+    grad.addColorStop(1, color + '00');
+
+    ctx.beginPath();
+    const sliceW = W / bufferLength;
+    let x = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      const v = dataArray[i] / 128.0;
+      const y = v * H / 2;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+      x += sliceW;
+    }
+    ctx.lineTo(W, H / 2);
+    ctx.lineTo(0, H / 2);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Wave line
+    ctx.beginPath();
+    x = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      const v = dataArray[i] / 128.0;
+      const y = v * H / 2;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+      x += sliceW;
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  draw();
+}
+
+// ─────────────────────────────────────────────
+// DONE OVERLAY
+// ─────────────────────────────────────────────
+function showDone() {
+  const def = MODES[currentMode];
+  document.getElementById('doneEmoji').textContent = def.emoji;
+  document.getElementById('doneTitle').textContent = def.doneTitle;
+  document.getElementById('doneSub').textContent = def.doneSub;
+  document.getElementById('doneOverlay').classList.add('show');
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+}
+
+function dismissDone() {
+  document.getElementById('doneOverlay').classList.remove('show');
+  document.getElementById('volWarn').classList.remove('show');
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+document.getElementById('statRuns').textContent = runsToday;
+updateRingDisplay(MODES[currentMode].totalMs / 1000, 0);
+
+// Service Worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+// Idle visualizer (flat line)
+(function idleViz() {
+  const canvas = document.getElementById('viz');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth * devicePixelRatio;
+  canvas.height = canvas.offsetHeight * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  ctx.beginPath();
+  ctx.moveTo(0, H/2);
+  ctx.lineTo(W, H/2);
+  ctx.strokeStyle = '#1e1e2e';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+})();
+</script>
+</body>
+</html>
